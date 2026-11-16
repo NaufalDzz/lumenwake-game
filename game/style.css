@@ -7,12 +7,14 @@ body {
   overflow: hidden;
 }
 
+/* fixed to the real client area (vw/vh can include a scrollbar); main.js fits the canvas inside it */
 #stage {
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100vw;
-  height: 100vh;
+  overflow: hidden;
 }
 
 #game {

@@ -1,5 +1,6 @@
 // Local play-test server for LUMENWAKE (Node 22, standard library only): `node serve.ts`
 // serves game/ at http://127.0.0.1:8096/ and nothing else. Loopback only, read-only, no caching.
+// Another port for side-by-side previews: `PORT=8097 node serve.ts`.
 
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -7,7 +8,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HOST = '127.0.0.1';
-const PORT = 8096;
+const PORT = Number(process.env.PORT) || 8096;
 const gameRoot = resolve(fileURLToPath(new URL('./game', import.meta.url)));
 
 const TYPES: Record<string, string> = {

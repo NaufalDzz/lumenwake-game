@@ -6,52 +6,87 @@
 node --test 'tests/*.test.mjs'
 ```
 
-- `tests/puzzle.test.mjs`: port rotation, reciprocal connectivity, source/garden behaviour, branches, locked
-  tiles, tide spending, undo/reset, tide-out loss and retry, scoring, deterministic scrambles, and every stage
-  solved from its scramble by a known legal turn sequence within budget.
-- `tests/ui-smoke.test.mjs`: loads the real `game/src/main.js` against a stub canvas/DOM and plays only through
-  synthetic mouse and keyboard events: title → stage 1 (keyboard turn, undo, reset, refused lighthouse click,
-  mouse solve) → win overlay → next stage → tide-out → retry → pause/how-to/stage select → all 12 stages →
-  campaign finale → play again → mute persisted.
+There are 44 tests, and the whole suite takes about 13 s.
 
-## Browser smoke test (desktop Chrome, 1280×720 viewport)
+- `tests/rules.test.mjs` covers the pure rules:
+  - beam tracing through each relay: mirror orientations, prism split and loss, lens gain, halo glow on 4 or 8 cells, blockers, loop termination, two-source detection
+  - every species' need
+  - seeded island generation and the 7-night campaign plan
+  - deterministic replay
+  - placement refusals and their reasons
+  - focus costs, free lifting, undo refunds and focus carry
+  - preview equals the real pulse
+  - harvest score and dew, chorus multiplier, withering hearts, loss at 0 hearts
+  - each storm (gale, hail, cloudbank, eclipse), including Anchored Frames
+  - waystation transactions: buy, sold out, can't afford, mend once, one boon, skip-for-dew, set out
+  - relays returning to the satchel on a new island
+  - the effect of every one of the 12 boons
+  - difficulty settings
+- `tests/balance.test.mjs` uses a test-only greedy keeper (`tests/support/strategy-bot.mjs`, never shipped). It checks that:
+  - every Breeze seed tried is won
+  - at least 4 of 6 Wayfarer seeds are won, each with a real harvest, at least 3 boons and no more than 45 pulses
+  - idle play loses on every difficulty
+  - Stormcaller is harder than Wayfarer
+  - the same seed with the same play gives the same score
+  - victory means surviving all seven nights: seed 1 is won without the Dawnheart, and the results subtitle only claims it bloomed when one was harvested (seed 15838)
+- `tests/ui-flow.test.mjs` loads the real `game/src/app/main.js` in a stand-in browser (`tests/support/fake-browser.mjs`, where any non-finite draw argument throws). It plays only through synthetic mouse clicks and keys:
+  - title: seed step/shuffle, difficulty → Breeze, Tab focus
+  - the guide on the first run
+  - undo
+  - a **complete winning expedition**: about 80 placements, moves, flips and well turns, by mouse and by arrow-key cursor
+  - pulses, dusk, and waystation boons/shop by click and by number keys
+  - victory results, persisted records
+  - retry the seed (`R`), then lose by neglect
+  - new run, the pause menu, mute, contrast, abandoning to the title
+  - the read-only snapshot
 
-Start the server with `node serve.ts` and open `http://127.0.0.1:8096/`. For a clean run, clear the site's
-local storage first. Coordinates below are canvas coordinates at a 1280×720 viewport (the canvas fills it).
-`L(x,y)` = left click, `R(x,y)` = right click. `window.lumenwake` (read-only) shows screen, level, moves,
-status and each tile's `centerX/centerY` if the viewport differs.
+  A shadow run driven through the pure rules is compared to the on-screen state after every step.
+- `tests/ui-storage.test.mjs` runs with `localStorage` throwing. It sets contrast and reduced motion, plays a Stormcaller run to a loss, and checks that records persist for the session and nothing is written.
 
-1. **Title.** Expect the LUMENWAKE wordmark, a glowing preview of stage 6 on the left, menu panel on the right
-   with "Begin the Wake" focused (mint dashed ring). Press `ArrowDown` twice: focus moves to "How to Play".
-   Press `Enter`: the How to Play sheet opens. Press `Esc`: back to title.
-2. **Start.** Click "Begin the Wake" (≈ 980, 342). Stage 1 "First Light" loads; HUD shows TURNS 0, par 7,
-   TIDE 13 left, GARDENS 0/1; right panel shows objective, tide, star thresholds, keeper's note, controls.
-3. **Keyboard + undo/reset.** Press `ArrowRight`, then `Space`: the selected tile turns with a pop, TURNS 1.
-   Press `Z`: it turns back, TURNS 0. Press `Space`, then `R`: toast "Canals reset", TURNS 0.
-4. **Fixed tiles.** Click the lighthouse L(206,274): it shakes, a stone knock plays, toast explains, TURNS stays 0.
-5. **Win stage 1 by mouse (par 7):** L(324,274) R(442,274) R(324,392) R(442,392) R(324,510) L(442,510) L(560,510).
-   Light ripples outward from the lighthouse, the garden blooms, then "The Gardens Wake" appears with 3 stars,
-   Turns 7 (par 7), Tide left 6, score and best. *(Screenshot candidate: results.)*
-6. **Next.** Press `Enter`: Stage 2 "Twin Gardens" (par 6, tide 10).
-7. **Lose.** Shift-click a decoy canal in the bottom-left loop, e.g. L(324,569) with Shift held, ten times.
-   The tide bar drains and turns coral; at 0 left the "The Tide Has Ebbed" card shows gardens awake and turns.
-   *(Screenshot candidate: loss screen.)* Press `R`: the stage restarts with full tide.
-8. **Win stage 2 (par 6):** R(324,333) L(442,333) L(560,333) L(560,333) L(560,451) L(560,569). Both gardens bloom.
-9. **Pause.** On stage 3 press `Esc`: Paused menu. `Esc` again resumes. Click "Menu" in the header (≈ 1112, 32)
-   then "Stage Select": cleared stages show gold thumbnails and stars; stage 4+ show "Locked". Press `Esc`.
-10. **Sound.** After the first click, a soft pad and bells play; press `M` (header button reads "Muted"), press
-    `M` again to restore. Reload the page: stage unlocks, stars and the mute choice persist.
-11. **Mid-game screenshot.** Stage 7 "Tidepool Weave" (needs stages 1–6 cleared) is the richest mid-game view:
-    play about half of its sequence so two of four gardens are lit and the HUD shows turns/tide in progress.
-    Its par sequence (25 turns):
-    L(346,150) L(443,150) L(540,150) R(637,150) L(152,247) L(346,247) R(443,247) L(540,247) R(152,344)
-    L(249,344) L(346,344) L(346,344) L(443,344) L(540,344) L(540,344) L(637,344) L(637,344) L(249,441)
-    L(249,441) L(540,441) R(637,441) L(249,538) L(443,538) R(637,538) L(443,635).
-12. **Campaign end.** Clearing stage 12 shows "See the Dawn"; it opens the finale with total stars, total best
-    score, per-stage stars and "Play Again from Stage 1", which restarts the campaign at stage 1.
+## Browser check (desktop Chrome, 1280×720 viewport)
+
+Start the server with `node serve.ts` (port 8096) or `PORT=8097 node serve.ts`, then open `http://127.0.0.1:8097/`.
+
+All coordinates below are canvas pixels at a 1280×720 viewport. If the viewport differs, read `window.lumenwake` in the console. It is read-only and lists every hitbox with `clientX/clientY`, every board cell's centre, and the run state: phase, night, hour, hearts, dew, score, focus, satchel, blooms with their `nextPulse` response, and the forecast.
+
+A board cell at column A–J and row 1–7 has its centre at **x = 69 + 70·col, y = 117 + 70·row**, with col and row counted from 0. For example, C4 is at (209, 327).
+
+1. **Title.** Check:
+   - the LUMENWAKE wordmark
+   - a lit showcase island
+   - Begin Expedition at (274, 259)
+   - difficulty arrows at (96, 347) and (452, 347)
+   - seed − at (96, 428), seed + at (336, 428), Shuffle at (421, 428)
+   - Guide, Sound, Contrast and Motion buttons
+   - the records panel
+
+   `Tab` moves focus and `Enter` starts the run.
+2. **Start.** The first run opens the guide. Close it with `Esc`. The HUD shows:
+   - night 1 / 7, hour, hearts, dew, score
+   - the island board with the well and two Dawnpetals marked ▼ (will wilt)
+   - the side panel: next pulse, garden ledger, focus diamonds, Undo, and the big Release Pulse at (1074, 650)
+   - the tray: Mirror, Prism, Lens, Halo, Turn Well at (668, 654)
+3. **Play.** Hover a cell on the beam with the Mirror selected. A ghost relay and its preview beam show where light would go, and the badges update. Click to place it. Click the mirror again to flip it, right-click to lift it (free), and press `Z` to undo. Press `Space` to pulse: beams surge, blooms grow, and harvested blooms burst with floating score.
+4. **Night end.** After the last hour the dusk summary shows harvests, bonus and dew. "To the Waystation" is at (640, 569).
+5. **Waystation.**
+   - Boon cards at (240, 236), (640, 236) and (1040, 236), or keys `1`–`3`.
+   - Skip for dew at (180, 358).
+   - Shop at (151, 518), (331, 518) and (511, 518), or keys `4`–`6`.
+   - Mend at (701, 518), or key `7`.
+   - Set out at (1030, 674).
+6. **Storms.** From night 2, forecast cells are outlined with a storm icon, and the side panel names the storm. The preview badges already include its effect.
+7. **End.** Either outcome shows the results screen, with New Expedition, Retry Seed and Title buttons:
+   - Win all seven nights: "Dawn Breaks over Stormcrown".
+   - Lose every heart: "The Gardens Fall Dark".
+8. **Pause, sound and access.** `Esc` opens the menu (resume, guide, sound, contrast, motion, abandon). `M` toggles sound. Reload the page and check that records and settings persist.
 
 ## Screenshots still to take (by the parent, in the real browser)
 
-3 or 4 genuine 1280×720 PNG/JPEG captures (each ≤ 256 KiB) saved to `screenshots/`, first by name = cover:
-`1-title.png` (title), `2-play.png` (stage in progress with HUD), `3-win.png` (results card), optionally
-`4-tide-out.png` or the finale. Then run `MAKEFUN_OUTPUT_DIR=/tmp/lumenwake-out node main.ts`.
+The old canal-puzzle images in `screenshots/` must be replaced. Take 4 genuine 1280×720 captures of the canvas. Save them as JPEG (quality about 85 keeps each well under 256 KiB) in `screenshots/`. The first file by name becomes the cover.
+
+1. `1-gameplay.jpg` (cover). Take it mid-run on night 3–5 (Mistveil or Stormcrown), when several blooms of different species are on the board, at least one prism split is lit and a storm forecast is showing. Before capturing, hover a free cell with a relay selected so the ghost preview is visible.
+2. `2-title.jpg`: the title screen with the records panel. Records are filled in after the first run.
+3. `3-waystation.jpg`: the waystation after any night, showing three boon cards, the shop and the satchel.
+4. `4-results.jpg`: the victory results after winning a run (Breeze is the gentlest), with the New Expedition / Retry Seed buttons. If no win is reached, the loss results screen also shows the restart.
+
+Then run `MAKEFUN_OUTPUT_DIR=/tmp/lumenwake-out node main.ts`.

@@ -1,13 +1,13 @@
-// Procedural Web Audio for LUMENWAKE: a slow blue-hour pad with drifting glass bells, and small
-// synthesized cues for turning canals, waking gardens, stone knocks, wins and the ebbing tide.
-// Nothing starts until the first user gesture (browsers require it) and every sound respects mute.
+// Procedural Web Audio for LUMENWAKE: a slow dusk pad with drifting glass bells that changes chord set
+// per island, and synthesized cues for every keeper action, growth, harvest chords that climb with the
+// chorus, withering, storms and the end of an expedition. Nothing starts until the first user gesture
+// (browsers require it) and every sound respects mute.
 
 const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21]; // major pentatonic over two octaves
-const CHORDS = [
-  [50, 57, 62, 66], // D  A  D  F#
-  [47, 54, 59, 62], // B  F# B  D
-  [43, 50, 55, 59], // G  D  G  B
-  [45, 52, 57, 61], // A  E  A  C#
+const ISLAND_CHORDS = [
+  [[50, 57, 62, 66], [47, 54, 59, 62], [43, 50, 55, 59], [45, 52, 57, 61]], // Verdant: D major drift
+  [[48, 55, 60, 64], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 62]], // Mistveil: C, airy
+  [[45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 59], [40, 47, 52, 55]], // Stormcrown: A minor
 ];
 
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -21,6 +21,7 @@ export function createAudio() {
   let muted = false;
   let musicTimer = 0;
   let chordIndex = 0;
+  let island = 0;
 
   function impulse(seconds) {
     const len = Math.floor(ctx.sampleRate * seconds);
@@ -107,7 +108,8 @@ export function createAudio() {
     const bar = 4.8;
     const play = () => {
       if (!ctx) return;
-      const chord = CHORDS[chordIndex++ % CHORDS.length];
+      const set = ISLAND_CHORDS[island] ?? ISLAND_CHORDS[0];
+      const chord = set[chordIndex++ % set.length];
       for (const m of chord) {
         voice(musicBus, { freq: midiHz(m - 12), type: 'triangle', dur: bar + 1.2, gain: 0.05, attack: 1.4, cutoff: 900 });
         voice(musicBus, { freq: midiHz(m) * 1.003, type: 'sine', dur: bar + 1, gain: 0.035, attack: 1.8 });
@@ -128,34 +130,68 @@ export function createAudio() {
     get muted() {
       return muted;
     },
-    get running() {
-      return !!ctx && ctx.state === 'running';
-    },
     setMuted(value) {
       muted = !!value;
       if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : 0.8, ctx.currentTime, 0.08);
     },
-    rotate(dir, depth = 0) {
-      noise({ dur: 0.07, gain: 0.12, freq: dir > 0 ? 2400 : 1700, q: 3 });
-      voice(sfxBus, { freq: dir > 0 ? 520 : 440, dur: 0.12, gain: 0.07, type: 'triangle', slide: dir > 0 ? 1.25 : 0.8 });
-      if (depth > 0) voice(sfxBus, { freq: midiHz(62 + SCALE[depth % SCALE.length]), at: 0.05, dur: 0.5, gain: 0.04 });
+    setIsland(i) {
+      island = i;
     },
-    stone() {
-      voice(sfxBus, { freq: 110, dur: 0.18, gain: 0.18, type: 'sine', slide: 0.6 });
-      noise({ dur: 0.1, gain: 0.1, freq: 400, q: 1 });
+    place(type) {
+      const base = { mirror: 520, prism: 660, lens: 440, halo: 392 }[type] ?? 520;
+      noise({ dur: 0.06, gain: 0.1, freq: 2600, q: 3 });
+      voice(sfxBus, { freq: base, dur: 0.18, gain: 0.08, type: 'triangle', slide: 1.2 });
+      voice(sfxBus, { freq: base * 1.5, at: 0.05, dur: 0.4, gain: 0.04 });
     },
-    wake(count) {
-      const base = 74 + Math.min(count, 5) * 2;
-      [0, 4, 7, 12].forEach((s, i) => voice(sfxBus, { freq: midiHz(base + s), at: i * 0.07, dur: 1.1, gain: 0.07 }));
+    flip() {
+      noise({ dur: 0.07, gain: 0.12, freq: 2200, q: 3 });
+      voice(sfxBus, { freq: 600, dur: 0.12, gain: 0.07, type: 'triangle', slide: 1.3 });
     },
-    dim() {
-      voice(sfxBus, { freq: midiHz(57), dur: 0.5, gain: 0.05, type: 'triangle', slide: 0.85 });
+    lift() {
+      voice(sfxBus, { freq: 500, dur: 0.16, gain: 0.06, type: 'triangle', slide: 0.7 });
+    },
+    well() {
+      voice(sfxBus, { freq: 220, dur: 0.4, gain: 0.1, type: 'sine', slide: 1.5 });
+      noise({ dur: 0.2, gain: 0.08, freq: 900, q: 1 });
+    },
+    deny() {
+      voice(sfxBus, { freq: 180, dur: 0.16, gain: 0.08, type: 'square', cutoff: 700 });
+    },
+    pulse() {
+      noise({ dur: 0.5, gain: 0.12, freq: 1400, q: 0.8 });
+      voice(sfxBus, { freq: 196, dur: 0.9, gain: 0.08, type: 'sine', slide: 2 });
+    },
+    grow(i = 0) {
+      voice(sfxBus, { freq: midiHz(74 + SCALE[i % SCALE.length]), at: 0.35 + i * 0.06, dur: 0.6, gain: 0.05 });
+    },
+    harvest(chorus) {
+      const base = 74 + Math.min(chorus, 5) * 2;
+      [0, 4, 7, 12, 16].slice(0, 3 + Math.min(2, chorus - 1)).forEach((s, i) => voice(sfxBus, { freq: midiHz(base + s), at: 0.45 + i * 0.07, dur: 1.2, gain: 0.07 }));
+    },
+    wither() {
+      [62, 58, 55].forEach((m, i) => voice(sfxBus, { freq: midiHz(m), at: 0.4 + i * 0.12, dur: 0.7, gain: 0.08, type: 'triangle', cutoff: 1200 }));
+      voice(sfxBus, { freq: 90, at: 0.4, dur: 0.5, gain: 0.14, slide: 0.6 });
+    },
+    storm(kind) {
+      if (kind === 'gale') noise({ dur: 0.9, gain: 0.16, freq: 600, q: 0.6 });
+      if (kind === 'hail') for (let i = 0; i < 8; i++) noise({ at: i * 0.05, dur: 0.04, gain: 0.12, freq: 3200, q: 4 });
+      if (kind === 'cloud') noise({ dur: 1.2, gain: 0.08, freq: 300, q: 0.5 });
+      if (kind === 'eclipse') voice(sfxBus, { freq: 110, dur: 1.2, gain: 0.12, type: 'sine', slide: 0.5 });
     },
     ui() {
       voice(sfxBus, { freq: 880, dur: 0.08, gain: 0.05, type: 'sine' });
     },
     undo() {
       voice(sfxBus, { freq: 660, dur: 0.16, gain: 0.06, type: 'triangle', slide: 0.7 });
+    },
+    buy() {
+      [76, 83].forEach((m, i) => voice(sfxBus, { freq: midiHz(m), at: i * 0.07, dur: 0.5, gain: 0.07 }));
+    },
+    boon() {
+      [69, 73, 76, 81].forEach((m, i) => voice(sfxBus, { freq: midiHz(m), at: i * 0.08, dur: 1.2, gain: 0.07 }));
+    },
+    dawn() {
+      [62, 66, 69, 74].forEach((m, i) => voice(sfxBus, { freq: midiHz(m), at: i * 0.12, dur: 1.6, gain: 0.07 }));
     },
     win() {
       const notes = [62, 66, 69, 74, 78, 81, 86];
