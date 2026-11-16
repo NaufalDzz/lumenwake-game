@@ -1,0 +1,6 @@
+# local hand-in output and scratch files
+out/
+output/
+*.log
+.DS_Store
+node_modules/
